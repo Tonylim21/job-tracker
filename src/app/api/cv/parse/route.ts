@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { groqJson } from "@/lib/ai/groq";
 import { embedTexts } from "@/lib/ai/embeddings";
 import { AiHttpError } from "@/lib/ai/errors";
+import { extractPdfText, isPdf } from "@/lib/pdf-parser";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs"; // pdf-parse butuh Node APIs, bukan Edge
 export const maxDuration = 60;
@@ -12,6 +14,8 @@ export const maxDuration = 60;
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB, sama dengan limit bucket "cvs"
 const MIN_TEXT_CHARS = 200; // di bawah ini hampir pasti PDF hasil scan/gambar
 const MAX_LLM_CHARS = 8_000; // menjaga token per menit tier gratis Groq (CV 1-2 halaman muat)
+// Roadmap: 5 request per jam per user. Bisa dinaikkan sementara saat development lewat env.
+const LIMIT_PER_HOUR = Number(process.env.CV_PARSE_LIMIT_PER_HOUR) || 5;
 
 const ParsedCv = z.object({
   full_name: z.string().nullish(),
@@ -94,7 +98,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Validasi input
+  // 2. Persetujuan pemrosesan data oleh AI (modal consent di CV Studio)
+  const { data: profile } = await supabase.from("profiles").select("ai_consent_at").eq("id", user.id).single();
+  if (!profile?.ai_consent_at) {
+    return NextResponse.json(
+      { error: "Persetujuan pemrosesan CV oleh AI belum diberikan.", code: "consent_required" },
+      { status: 403 }
+    );
+  }
+
+  // 3. Rate limit (melindungi kuota gratis Groq/Gemini)
+  const rl = await rateLimit("cv-parse", user.id, LIMIT_PER_HOUR, 3600);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `Batas ${LIMIT_PER_HOUR} unggahan per jam tercapai. Coba lagi dalam ${Math.ceil(rl.retryAfterSec / 60)} menit.` },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+    );
+  }
+
+  // 4. Validasi input
   let form: FormData;
   try {
     form = await req.formData();
@@ -112,27 +134,23 @@ export async function POST(req: Request) {
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  // Cek magic bytes, jangan percaya Content-Type dari client
-  if (buffer.subarray(0, 5).toString("latin1") !== "%PDF-") {
+  if (!isPdf(buffer)) {
     return NextResponse.json({ error: "File bukan PDF yang valid" }, { status: 415 });
   }
 
   let uploadedPath: string | null = null;
 
   try {
-    // 3. Ekstrak teks
-    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
-    const pdf = await pdfParse(buffer);
-    const rawText = pdf.text.replace(/\u0000/g, "").trim();
-
+    // 5. Ekstrak teks
+    const rawText = await extractPdfText(buffer);
     if (rawText.length < MIN_TEXT_CHARS) {
       return NextResponse.json(
-        { error: "Teks tidak terbaca. PDF mungkin hasil scan; gunakan PDF berbasis teks." },
+        { error: "Teks tidak terbaca. PDF mungkin hasil scan; gunakan PDF berbasis teks (bukan foto/gambar)." },
         { status: 422 }
       );
     }
 
-    // 4. Parse terstruktur via Groq (llama-3.3-70b-versatile)
+    // 6. Parse terstruktur via Groq (model dari GROQ_MODEL, default openai/gpt-oss-120b)
     let parsed: ParsedCv;
     try {
       parsed = await groqJson(
@@ -141,7 +159,7 @@ export async function POST(req: Request) {
           { role: "user", content: `CV_TEXT:\n"""\n${rawText.slice(0, MAX_LLM_CHARS)}\n"""` },
         ],
         ParsedCv,
-        { maxTokens: 2500 }
+        { maxTokens: 4000 }
       );
     } catch (e) {
       if (e instanceof AiHttpError) throw e;
@@ -149,14 +167,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Gagal memahami struktur CV, coba lagi" }, { status: 502 });
     }
 
-    // 5. Embedding 768 dimensi via Gemini (CV sebagai "query" untuk mencari lowongan)
+    // 7. Embedding 768 dimensi via Gemini (CV sebagai "query" untuk mencari lowongan)
     const embeddingInput = buildEmbeddingInput(parsed);
     if (!embeddingInput.trim()) {
       return NextResponse.json({ error: "Isi CV tidak terbaca sebagai CV" }, { status: 422 });
     }
     const [vector] = await embedTexts([embeddingInput], "RETRIEVAL_QUERY");
 
-    // 6. Simpan file ke Storage (path diawali user id → dicek oleh policy storage)
+    // 8. Simpan file ke Storage (path diawali user id → dicek oleh policy storage)
     const path = `${user.id}/${randomUUID()}.pdf`;
     const { error: uploadError } = await supabase.storage
       .from("cvs")
@@ -164,12 +182,8 @@ export async function POST(req: Request) {
     if (uploadError) throw uploadError;
     uploadedPath = path;
 
-    // 7. Nonaktifkan CV lama, simpan yang baru
-    await supabase
-      .from("cv_profiles")
-      .update({ is_active: false })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
+    // 9. Nonaktifkan CV lama, simpan yang baru
+    await supabase.from("cv_profiles").update({ is_active: false }).eq("user_id", user.id).eq("is_active", true);
 
     const { data, error: insertError } = await supabase
       .from("cv_profiles")
@@ -195,6 +209,18 @@ export async function POST(req: Request) {
       );
     }
     console.error("[/api/cv/parse]", err);
+    if (err instanceof AiHttpError && (err.status === 401 || err.status === 403)) {
+      return NextResponse.json(
+        { error: `API key ${err.provider === "groq" ? "Groq" : "Gemini"} tidak valid atau tidak punya akses. Cek .env.local lalu restart server.` },
+        { status: 502 }
+      );
+    }
+    if (err instanceof AiHttpError && err.status === 404) {
+      return NextResponse.json(
+        { error: "Model AI tidak ditemukan (kemungkinan sudah dipensiunkan). Cek GROQ_MODEL atau GEMINI_EMBEDDING_MODEL di .env.local." },
+        { status: 502 }
+      );
+    }
     // Bersihkan file yatim jika insert DB gagal
     if (uploadedPath) await supabase.storage.from("cvs").remove([uploadedPath]);
     return NextResponse.json({ error: "Terjadi kesalahan saat memproses CV" }, { status: 500 });

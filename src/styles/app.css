@@ -1,0 +1,66 @@
+/* Gaya halaman setelah login: topbar, tab, CV Studio. Token warna ada di globals.css */
+.app { position: relative; z-index: 2; max-width: 1280px; margin: 0 auto; padding: 20px clamp(16px,3vw,40px) 48px; }
+.bar { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; justify-content: space-between; padding-bottom: 16px; }
+.bar .brand { font: 500 13px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.bar .btn { width: auto; padding: 7px 12px; font-size: 11px; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font: 400 11px var(--mono); color: var(--mute); }
+.chip { border: 1px solid var(--line); padding: 7px 10px; display: flex; align-items: center; gap: 8px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg); animation: pulse 2s infinite; }
+.dot.off { background: var(--dim); animation: none; }
+@keyframes pulse { 50% { opacity: .25; } }
+.tabs { overflow-x: auto; overflow-y: hidden; white-space: nowrap; gap: 20px; }
+.tabs .soon { color: var(--dim); opacity: .45; font: 500 12px var(--mono); letter-spacing: .14em; text-transform: uppercase; padding-bottom: 12px; cursor: not-allowed; }
+
+.cv-grid { display: grid; grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); gap: 24px; align-items: start; }
+@media (max-width: 900px) { .cv-grid { grid-template-columns: 1fr; } }
+.cv-head h1 { font-size: clamp(36px,5vw,64px); line-height: .95; margin-bottom: 8px; }
+.cv-head { margin-bottom: 28px; }
+.box + .box { margin-top: 16px; }
+.k { font: 500 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+.inp { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--fg); font: 400 16px var(--sans); padding: 6px 0 10px; border-radius: 0; outline: 0; margin-bottom: 18px; }
+.inp:focus { border-bottom-color: var(--fg); }
+.drop { border: 1px dashed var(--dim); padding: 30px 16px; text-align: center; cursor: pointer; margin-bottom: 18px; transition: border-color .2s, background .2s; font-size: 14px; color: var(--mute); }
+.drop:hover, .drop.over, .drop:focus-visible { border-color: var(--fg); background: #ffffff0d; }
+.drop b { display: block; color: var(--fg); font: 500 13px var(--mono); letter-spacing: .08em; margin-bottom: 6px; word-break: break-all; }
+.msg { margin: 14px 0 0; font: 400 12px/1.5 var(--mono); color: var(--mute); min-height: 1.4em; }
+.tags { margin: 0 0 14px; }
+.tags em { font: 500 11px var(--mono); font-style: normal; border: 1px solid var(--line); padding: 4px 8px; margin: 0 6px 6px 0; display: inline-block; }
+.tags .no { color: var(--dim); border-style: dashed; }
+.tags .ok { border-color: var(--fg); }
+.list { margin: 0 0 14px; padding: 0; list-style: none; font-size: 14px; color: var(--mute); line-height: 1.7; }
+.list b { color: var(--fg); font-weight: 500; }
+.sec-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.sec-head .btn { width: auto; padding: 9px 12px; font-size: 11px; }
+.mrow { border-bottom: 1px solid var(--line); padding: 18px 2px; }
+.mhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.mtitle { font-size: 16px; font-weight: 500; margin: 0 0 4px; }
+.msub { font: 400 11px var(--mono); color: var(--dim); letter-spacing: .04em; margin: 0; }
+.mscore { font: 400 40px/1 var(--serif); text-align: right; }
+.mscore small { display: block; font: 400 10px var(--mono); color: var(--dim); letter-spacing: .04em; margin-top: 4px; }
+.sbar { height: 8px; border: 1px solid var(--fg); margin: 12px 0; background: repeating-linear-gradient(135deg,var(--fg) 0 2px,transparent 2px 5px) 0 0/var(--w) 100% no-repeat; }
+.mrow a { color: var(--fg); font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.note { font: 400 11px/1.6 var(--mono); color: var(--dim); margin: 14px 0 0; }
+
+.modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.82); z-index: 50; display: grid; place-items: center; padding: 20px; overflow-y: auto; }
+.modal { background: var(--bg2); border: 1px solid var(--fg); box-shadow: 8px 8px 0 var(--line); max-width: 540px; width: 100%; padding: 28px; }
+.modal h2 { font-size: 34px; margin-bottom: 14px; }
+.modal ul { margin: 0 0 18px; padding-left: 18px; color: var(--mute); font-size: 14px; line-height: 1.7; }
+.modal label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; margin-bottom: 20px; cursor: pointer; }
+.modal input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: #fff; flex: none; }
+.modal .acts { display: flex; gap: 10px; }
+.modal .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Studio perbaikan CV + Diff View */
+.studio { margin-top: 24px; border: 1px solid var(--fg); background: var(--bg2); padding: 24px; box-shadow: 8px 8px 0 var(--line); }
+.studio h2 { font-size: 30px; line-height: 1.05; }
+.studio-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
+.studio-head .btn { width: auto; padding: 8px 12px; font-size: 11px; flex: none; }
+.sug { border-top: 1px solid var(--line); padding: 18px 0; }
+.sug .label { font: 500 11px var(--mono); color: var(--dim); letter-spacing: .06em; margin: 0 0 8px; }
+.diff { font-size: 15px; line-height: 1.8; margin: 0 0 12px; }
+.d-del { text-decoration: line-through; color: var(--dim); }
+.d-add { background: var(--fg); color: var(--bg); padding: 0 3px; }
+.cleantext { border-left: 2px solid var(--fg); padding-left: 12px; margin: 0 0 10px; font-size: 15px; line-height: 1.6; }
+.sug .reason { font: 400 12px/1.6 var(--mono); color: var(--mute); margin: 0 0 10px; }
+.sug .btn { width: auto; padding: 8px 12px; font-size: 11px; }
+.linkbtn { background: none; border: 0; color: var(--fg); font: 500 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; cursor: pointer; padding: 0; margin-left: 18px; text-decoration: underline; }
