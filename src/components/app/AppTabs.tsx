@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const TABS: { href: string | null; label: string }[] = [
-  { href: "/dashboard", label: "1 Dashboard 3D" },
+  { href: "/dashboard", label: "1 Dashboard" },
   { href: "/cv", label: "2 CV Studio" },
   { href: null, label: "3 Auto-Apply" }, // belum dibuat
   { href: null, label: "4 Kanban" },

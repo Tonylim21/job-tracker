@@ -12,7 +12,7 @@ type ParsedCv = {
   education?: { institution?: string | null; degree?: string | null }[];
   projects?: { name?: string | null }[];
 };
-type CvRow = { id: string; created_at: string; target_role: string | null; parsed: ParsedCv };
+type CvRow = { id: string; created_at: string; target_role: string | null; parsed: ParsedCv; storagePath: string };
 type Match = {
   job_id: string;
   title: string;
@@ -30,7 +30,17 @@ type Match = {
 const SOURCE_LABEL: Record<string, string> = { remoteok: "Remote OK", jooble: "Jooble", jsearch: "JSearch" };
 const MAX_BYTES = 5 * 1024 * 1024;
 
-export default function CvStudio({ userId, hasConsent, cv }: { userId: string; hasConsent: boolean; cv: CvRow | null }) {
+export default function CvStudio({
+  userId,
+  hasConsent,
+  cv,
+  initialImprove = null,
+}: {
+  userId: string;
+  hasConsent: boolean;
+  cv: CvRow | null;
+  initialImprove?: { id: string; label: string } | null;
+}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [consent, setConsent] = useState(hasConsent);
@@ -44,7 +54,7 @@ export default function CvStudio({ userId, hasConsent, cv }: { userId: string; h
   const [msg, setMsg] = useState("");
   const [matches, setMatches] = useState<Match[] | null>(null);
   const [loadingMatches, setLoadingMatches] = useState(false);
-  const [improve, setImprove] = useState<{ id: string; label: string } | null>(null);
+  const [improve, setImprove] = useState<{ id: string; label: string } | null>(initialImprove);
 
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true);
@@ -147,6 +157,24 @@ export default function CvStudio({ userId, hasConsent, cv }: { userId: string; h
     await doUpload();
   }
 
+  // Membuka PDF asli lewat tautan sementara (2 menit) dari bucket privat
+  async function viewPdf() {
+    if (!cv) return;
+    const w = window.open("about:blank", "_blank"); // dibuka sinkron agar tidak diblokir pop-up blocker
+    const { data, error } = await createClient().storage.from("cvs").createSignedUrl(cv.storagePath, 120);
+    if (error || !data) {
+      w?.close();
+      setMsg("Gagal membuka CV: " + (error?.message ?? "tautan tidak tersedia"));
+      return;
+    }
+    if (w) {
+      w.opener = null;
+      w.location.href = data.signedUrl;
+    } else {
+      window.location.href = data.signedUrl;
+    }
+  }
+
   async function refreshJobs() {
     setFetching(true);
     setMsg("Mengambil lowongan terbaru…");
@@ -227,7 +255,10 @@ export default function CvStudio({ userId, hasConsent, cv }: { userId: string; h
 
           {p && (
             <div className="box">
-              <p className="k">CV aktif{p.headline ? ` · ${p.headline}` : ""}</p>
+              <div className="sec-head">
+                <p className="k" style={{ margin: 0 }}>CV aktif{p.headline ? ` · ${p.headline}` : ""}</p>
+                <button className="btn alt" onClick={viewPdf}>Lihat PDF ↗</button>
+              </div>
               {!!p.skills?.length && (
                 <>
                   <p className="k">Skill terdeteksi</p>

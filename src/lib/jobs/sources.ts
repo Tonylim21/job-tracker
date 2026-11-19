@@ -80,7 +80,8 @@ const valid = (j: NormalizedJob) => !!(j.external_id && j.title && j.apply_url);
 export async function fetchJooble(q: string, location: string): Promise<NormalizedJob[]> {
   const key = process.env.JOOBLE_API_KEY;
   if (!key) return [];
-  const res = await fetch(`https://jooble.org/api/${key}`, {
+  const base = process.env.JOOBLE_BASE_URL?.replace(/\/+$/, "") || "https://jooble.org/api";
+  const res = await fetch(`${base}/${key}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ keywords: q, location, page: 1 }),
@@ -189,7 +190,8 @@ export async function fetchRemoteOK(q: string): Promise<NormalizedJob[]> {
       };
     })
     .filter((j) => {
-      const hay = `${j.title} ${j.skills.join(" ")} ${j.description}`.toLowerCase();
+      // Cocokkan ke judul saja: deskripsi hampir selalu memuat kata umum seperti "engineer"
+      const hay = j.title.toLowerCase();
       return words.length === 0 || words.some((w) => hay.includes(w));
     })
     .slice(0, MAX_PER_SOURCE)

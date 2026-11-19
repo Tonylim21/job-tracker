@@ -12,11 +12,11 @@
 
 ---
 
-## 📌 Status Terakhir (14 Nov 2026)
+## 📌 Status Terakhir (15 Nov 2026)
 
-* ✅ Phase 1–2 selesai (kecuali Jooble/JSearch yang menunggu API key). Phase 3: upload CV, parsing Groq, embedding Gemini, rate limit, consent, dan Match Score **sudah berjalan di localhost**.
-* 🔄 Studio perbaikan CV dengan Diff View: kode siap, belum diuji. Kalibrasi Match Score: perlu disetel dengan data asli.
-* ⏭️ Berikutnya: uji studio → Phase 4 (Dashboard 3D dengan data asli) → Phase 5 (cover letter, ekspor PDF, Chrome extension).
+* ✅ Phase 1–3 berjalan di localhost (auth, job feed, upload CV, Match Score), Studio perbaikan CV sedang diuji.
+* 🔄 Phase 4: Dashboard dengan data asli (grafik 3D/2D, statistik lamaran, detail dan daftar lowongan): kode siap, belum diuji.
+* ⏭️ Berikutnya: uji Dashboard → aktifkan Jooble/JSearch → Phase 5 (cover letter, ekspor PDF, "Perbaiki CV-ku", Chrome extension).
 
 ### 🔧 Catatan penyesuaian terhadap kode yang berjalan
 
@@ -121,14 +121,14 @@
 
 > **Goal**: Membangun visualisasi 3D Node Graph yang responsif dan tidak membebani perangkat seluler.
 
-* [ ] **4.1 Navigation & Main Layout**
-  * [ ] Buat Topbar sistem (Status Sync Gmail, CV Aktif, Profil).
-  * [ ] Buat Tab Navigation 5 modul (Dashboard 3D, CV Studio, Auto-Apply, Kanban Tracker, Skill Gaps).
+* [x] **4.1 Navigation & Main Layout**
+  * [x] Buat Topbar sistem (status Gmail: statis "belum terhubung" sampai Phase 6, CV aktif, profil).
+  * [x] Buat Tab Navigation 5 modul (Dashboard, CV Studio aktif; sisanya "segera hadir").
 
-* [ ] **4.2 Three.js 3D Skill-to-Job Neural Canvas**
-  * [ ] Buat komponen React Three Fiber `<NeuralMatrixCanvas />`.
-  * [ ] Muat komponen secara dinamis di Next.js menggunakan `next/dynamic(() => import(...), { ssr: false })`.
-  * [ ] Tambahkan *device capability detection*: Tampilkan grafik 3D low-poly / fallback 2D interaktif jika dibuka dari perangkat seluler (mobile).
+* [/] **4.2 Three.js 3D Skill-to-Job Neural Canvas**
+  * [/] Buat komponen grafik 3D (`NodeGraph3D.tsx`, memakai Three.js langsung, bukan React Three Fiber): kode siap, belum diuji.
+  * [/] Muat komponen secara dinamis dengan `next/dynamic` (`ssr: false`).
+  * [/] *Device capability detection*: perangkat mobile/lemah otomatis memakai grafik 2D SVG interaktif (`NodeGraph2D.tsx`); bisa diganti manual lewat tombol mode.
 
 ---
 

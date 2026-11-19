@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { embedTexts } from "@/lib/ai/embeddings";
+import { rateLimit } from "@/lib/rate-limit";
 import { fetchJooble, fetchJSearch, fetchRemoteOK, type NormalizedJob } from "@/lib/jobs/sources";
 
 export const runtime = "nodejs";
@@ -14,6 +15,23 @@ const Body = z.object({
   // batas embedding per panggilan, karena kuota gratis Gemini terbatas
   maxEmbed: z.number().int().min(0).max(50).default(25),
 });
+
+// Sumber gratis tapi berkuota (JSearch: 200 request/bulan, hard limit). Dibatasi per hari
+// supaya satu hari testing tidak menghabiskan jatah sebulan. Bisa diubah lewat env.
+const PER_DAY = {
+  jooble: Number(process.env.JOOBLE_MAX_PER_DAY) || 6,
+  jsearch: Number(process.env.JSEARCH_MAX_PER_DAY) || 3,
+};
+
+async function gate(name: "jooble" | "jsearch", hasKey: boolean): Promise<{ run: boolean; note?: string }> {
+  if (!hasKey) return { run: false, note: "API key belum diisi, dilewati" };
+  const r = await rateLimit(`src-${name}`, "global", PER_DAY[name], 86400);
+  if (r.ok) return { run: true };
+  return {
+    run: false,
+    note: `Dibatasi ${PER_DAY[name]} panggilan/hari untuk menghemat kuota gratis (coba lagi dalam ${Math.ceil(r.retryAfterSec / 3600)} jam)`,
+  };
+}
 
 const cut = (s: string | null, n: number) => (s == null ? null : s.slice(0, n));
 
@@ -35,15 +53,24 @@ export async function POST(req: Request) {
   }
   const { q, location, maxEmbed } = parsed.data;
 
-  // 1. Ambil dari semua sumber secara paralel; satu sumber gagal tidak membatalkan yang lain
+  // 1. Ambil dari semua sumber secara paralel; satu sumber gagal/dilewati tidak membatalkan yang lain
   const names = ["jooble", "jsearch", "remoteok"] as const;
-  const enabled = { jooble: !!process.env.JOOBLE_API_KEY, jsearch: !!process.env.RAPIDAPI_KEY, remoteok: true };
-  const settled = await Promise.allSettled([fetchJooble(q, location), fetchJSearch(q, location), fetchRemoteOK(q)]);
+  const [gJooble, gJsearch] = await Promise.all([
+    gate("jooble", !!process.env.JOOBLE_API_KEY),
+    gate("jsearch", !!process.env.RAPIDAPI_KEY),
+  ]);
+  const gates: { run: boolean; note?: string }[] = [gJooble, gJsearch, { run: true }];
+  const none = Promise.resolve<NormalizedJob[]>([]);
+  const settled = await Promise.allSettled([
+    gJooble.run ? fetchJooble(q, location) : none,
+    gJsearch.run ? fetchJSearch(q, location) : none,
+    fetchRemoteOK(q),
+  ]);
 
   const sources = settled.map((r, i) => ({
     source: names[i],
     fetched: r.status === "fulfilled" ? r.value.length : 0,
-    ...(!enabled[names[i]] && { note: "API key belum diisi, dilewati" }),
+    ...(!gates[i].run && { note: gates[i].note }),
     ...(r.status === "rejected" && { error: r.reason instanceof Error ? r.reason.message : "gagal" }),
   }));
 
@@ -51,7 +78,7 @@ export async function POST(req: Request) {
   for (const r of settled) {
     if (r.status === "fulfilled") for (const j of r.value) unique.set(`${j.source}:${j.external_id}`, j);
   }
-  const jobs = [...unique.values()];
+  const jobs = Array.from(unique.values());
 
   // 2. Simpan; baris yang sudah ada (source + external_id sama) dilewati
   const admin = createAdminClient();
@@ -115,7 +142,8 @@ export async function POST(req: Request) {
         }
       } catch (e) {
         console.error("[jobs/fetch] embedding", e);
-        embedError = "Embedding gagal. Cek GEMINI_API_KEY, atau kuota gratis Gemini sedang habis (coba lagi beberapa menit lagi atau kecilkan maxEmbed).";
+        embedError =
+          "Embedding gagal. Cek GEMINI_API_KEY, atau kuota gratis Gemini sedang habis (coba lagi beberapa menit lagi atau kecilkan maxEmbed).";
       }
     }
   }

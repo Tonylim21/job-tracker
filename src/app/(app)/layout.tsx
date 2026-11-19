@@ -28,6 +28,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className={cv ? "dot" : "dot off"} />
               CV: {cv ? "AKTIF" : "BELUM ADA"}
             </span>
+            <span className="chip" title="Sinkronisasi Gmail dibuat di Phase 6">
+              <span className="dot off" />
+              Gmail: BELUM TERHUBUNG
+            </span>
             <span className="chip">{profile?.full_name ?? user.email}</span>
             <SignOutButton />
           </div>
